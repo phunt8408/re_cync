@@ -41,7 +41,6 @@ class ReCyncEntity(CoordinatorEntity[ReCyncCoordinator]):
                 (CONNECTION_NETWORK_MAC, dev_info["wifiMac"]),
             },
             manufacturer="Cync",
-            model_id=str(dev_info["deviceType"]),
             name=dev_info["displayName"],
             sw_version=dev_info["firmwareVersion"],
         )
