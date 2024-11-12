@@ -60,23 +60,28 @@ class ReCyncCoordinator(DataUpdateCoordinator):
         self.data = {}
 
     async def start_cloud(self):
-        """Check cloud."""
-        _LOGGER.info("Cloud start %s", self._rcs.user_id)
+    """Check cloud."""
+    _LOGGER.info("Cloud start %s", self._rcs.user_id)
 
-        url = API_DEVICE_LIST.format(user_id=self._rcs.user_id)
-        devices = await self._get_url(url)
-        for d in devices:
-            sku_type = int(d["product_id"], 16) % 1000
-            match sku_type:
-                case 713, 721:
-                    _LOGGER.debug("Ignoring switch/dimmer (?) SKU type %d", sku_type)
-                case 897:
-                    await self._discover_home(d)
-                case _:
-                    _LOGGER.debug("Ignoring SKU type %d (%s)", sku_type, d.get("name"))
-        self._event_stream.set_update_callback(self.async_handle_status)
-        await self._event_stream.initialize()
-        _LOGGER.info("Cloud started")
+    url = API_DEVICE_LIST.format(user_id=self._rcs.user_id)
+    devices = await self._get_url(url)
+    for d in devices:
+        # Log the name, ID, and product ID of each device
+        _LOGGER.debug("Discovered device - Name: %s, ID: %s, Product ID: %s", 
+                      d.get("name"), d.get("id"), d.get("product_id"))
+
+        sku_type = int(d["product_id"], 16) % 1000
+        match sku_type:
+            case 713, 721:
+                _LOGGER.debug("Ignoring switch/dimmer (?) SKU type %d", sku_type)
+            case 897:
+                await self._discover_home(d)
+            case _:
+                _LOGGER.debug("Ignoring SKU type %d (%s)", sku_type, d.get("name"))
+    self._event_stream.set_update_callback(self.async_handle_status)
+    await self._event_stream.initialize()
+    _LOGGER.info("Cloud started")
+
 
     async def async_handle_status(self, switch_id, status) -> None:
         _LOGGER.debug("Got status %s %s", switch_id, status)
@@ -125,22 +130,13 @@ class ReCyncCoordinator(DataUpdateCoordinator):
         )
 
     async def _discover_home(self, device):
-        url = API_DEVICE_PROPS.format(
-            product_id=device["product_id"], device_id=device["id"]
-        )
-        info = await self._get_url(url)
-        for bulb in info["bulbsArray"]:
-            self._bulbs.append(bulb)
+    url = API_DEVICE_PROPS.format(
+        product_id=device["product_id"], device_id=device["id"]
+    )
+    info = await self._get_url(url)
+    for bulb in info["bulbsArray"]:
+        # Log details of each bulb discovered
+        _LOGGER.debug("Bulb found - Name: %s, ID: %s, Type: %s", 
+                      bulb.get("displayName"), bulb.get("deviceID"), bulb.get("deviceType"))
+        self._bulbs.append(bulb)
 
-    async def _get_url(self, url):
-        headers = {"Access-Token": self._rcs.access_token}
-        async with aiohttp.ClientSession() as s, s.get(url, headers=headers) as resp:
-            data = await resp.json()
-            _LOGGER.debug("GetUrl %s -> %s", url, data)
-            match resp.status:
-                case 200:
-                    return data
-                case 403:
-                    raise AuthError("Forbidden", url, resp.status, data)
-                case _:
-                    raise ApiError("Failed to fetch", url, resp.status, data)
