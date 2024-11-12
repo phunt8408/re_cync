@@ -60,11 +60,12 @@ class ReCyncCoordinator(DataUpdateCoordinator):
         self.data = {}
 
     async def start_cloud(self):
-    """Check cloud."""
-    _LOGGER.info("Cloud start %s", self._rcs.user_id)
+        """Check cloud."""
+        _LOGGER.info("Cloud start %s", self._rcs.user_id)
 
-    url = API_DEVICE_LIST.format(user_id=self._rcs.user_id)
-    devices = await self._get_url(url)
+        url = API_DEVICE_LIST.format(user_id=self._rcs.user_id)
+        devices = await self._get_url(url)
+
     for d in devices:
         # Log the name, ID, and product ID of each device
         _LOGGER.debug("Discovered device - Name: %s, ID: %s, Product ID: %s", 
@@ -130,7 +131,7 @@ class ReCyncCoordinator(DataUpdateCoordinator):
         )
 
     async def _discover_home(self, device):
-    url = API_DEVICE_PROPS.format(
+        url = API_DEVICE_PROPS.format(
         product_id=device["product_id"], device_id=device["id"]
     )
     info = await self._get_url(url)
