@@ -15,6 +15,7 @@ from .const import CLOUD_SERVER_NAME
 
 _LOGGER = logging.getLogger(__name__)
 
+TARGET_DEVICE_ID = "c2555427-0146-479b-9c78-a210d953b0ae"  # Dining Room Switch
 
 def packet2hex(byte_array) -> str:
     """Convert a byte array to a readable hex format."""
@@ -131,19 +132,25 @@ class EventStream:
                 callback(etype, data)
 
     async def async_command(self, c, switch_id, packet) -> None:
-        """Send a message to the cloud."""
-        if not self.connected:
-            _LOGGER.warning("Not connected, dropping message")
-            return
+         """Send a message to the cloud."""
+         if not self.connected:
+        _LOGGER.warning("Not connected, dropping message")
+        return
 
-        self._seq += 1
-        preamble = (
-            c
-            + int(switch_id).to_bytes(4, "big")
-            + int(self._seq).to_bytes(2, "big")
-            + bytes.fromhex("007e00000000f8d00d000000000000")
-        )
-        await self._async_write(preamble + packet)
+        # Only proceed if the switch ID matches the target device
+        if switch_id != TARGET_DEVICE_ID:
+        _LOGGER.debug("Ignoring command for switch %s (not target device)", switch_id)
+        return
+
+    self._seq += 1
+    preamble = (
+        c
+        + int(switch_id).to_bytes(4, "big")
+        + int(self._seq).to_bytes(2, "big")
+        + bytes.fromhex("007e00000000f8d00d000000000000")
+    )
+    await self._async_write(preamble + packet)
+
 
     async def _async_write(self, message) -> None:
         self._writer.write(message)  # TODO Needs locking?
@@ -246,33 +253,46 @@ class EventStream:
         _LOGGER.warning("Handled error %02x %d", err_code, err_code)
 
     async def __handle_status_update(self, packet):
-        switch_id = str(struct.unpack(">I", packet[0:4])[0])
+         switch_id = str(struct.unpack(">I", packet[0:4])[0])
+
+         # Only process status updates for the target device
+        if switch_id != TARGET_DEVICE_ID:
+        _LOGGER.debug("Ignoring status update for switch %s (not target device)", switch_id)
+        return
+
         is_on, brightness, white_temp, red, green, blue = struct.unpack(
-            ">?BBBBB", packet[11:17]
-        )
+        ">?BBBBB", packet[11:17]
+         )
         _LOGGER.debug(
-            "Status from switch %s on:%s bri:%02x temp:%02x rgb:%02x%02x%02x after:%s",
-            switch_id,
-            is_on,
-            brightness,
-            white_temp,
-            red,
-            green,
-            blue,
-            packet[17:].hex(),
-        )
+        "Status from switch %s on:%s bri:%02x temp:%02x rgb:%02x%02x%02x after:%s",
+        switch_id,
+        is_on,
+        brightness,
+        white_temp,
+        red,
+        green,
+        blue,
+        packet[17:].hex(),
+         )
         if self._cb:
-            await self._cb(
-                switch_id,
-                {
-                    "is_on": is_on,
-                    "brightness": brightness,
-                    "white_temp": white_temp,
-                    "rgb": (red, green, blue),
-                },
-            )
+        await self._cb(
+            switch_id,
+            {
+                "is_on": is_on,
+                "brightness": brightness,
+                "white_temp": white_temp,
+                "rgb": (red, green, blue),
+            },
+        )
+
 
     def __handle_command(self, packet):
-        switch_id = str(struct.unpack(">I", packet[0:4])[0])
+         switch_id = str(struct.unpack(">I", packet[0:4])[0])
 
-        _LOGGER.debug("Command about switch %s %s", switch_id, packet.hex())
+         # Only process commands for the target device
+         if switch_id != TARGET_DEVICE_ID:
+        _LOGGER.debug("Ignoring command for switch %s (not target device)", switch_id)
+        return
+
+         _LOGGER.debug("Command about switch %s %s", switch_id, packet.hex())
+

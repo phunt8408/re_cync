@@ -1,8 +1,7 @@
-"""ReSync authentication."""
+"""ReCync authentication."""
 from __future__ import annotations
 
 import logging
-
 import aiohttp
 
 _LOGGER = logging.getLogger(__name__)
@@ -25,12 +24,7 @@ class TwoFactorRequiredError(AuthError):
 
 
 async def cync_check_user(username) -> bool:
-    """TODO The real login sequence API isn't as implemented.
-
-    Looking at the other implementation and sniffing the website, it looks like
-    GE actually just uses 404 for "no such account". The actual authentication
-    step is password and 2FA in one shot to get the token.
-    """
+    """Placeholder for checking if a user exists."""
     raise NotImplementedError
 
 
@@ -116,7 +110,7 @@ class ReCyncSession:
 
     @property
     def binary_token(self) -> bytearray:
-        "Binary version of the login code."
+        """Binary version of the login code."""
         login_code = (
             bytearray.fromhex("13000000")
             + (10 + len(self._credentials["authorize"])).to_bytes(1, "big")

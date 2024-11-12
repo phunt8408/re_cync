@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import logging
-
 import aiohttp
-
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_TOKEN
 from homeassistant.core import HomeAssistant
@@ -22,17 +20,14 @@ API_DEVICE_PROPS = (
     "https://api.gelighting.com/v2/product/{product_id}/device/{device_id}/property"
 )
 
-DEVICE_TYPES_SWITCHES = {55, 68}
-DEVICE_TYPES_BULBS = {57, 146}
-
+# Define the specific device IDs for testing
+TARGET_DEVICE_ID = "c2555427-0146-479b-9c78-a210d953b0ae"  # Dining Room Switch
 
 class ApiError(Exception):
     pass
 
-
 class AuthError(ApiError):
     pass
-
 
 class ReCyncCoordinator(DataUpdateCoordinator):
     """Cync's cloud "hub" that works over IP."""
@@ -65,18 +60,15 @@ class ReCyncCoordinator(DataUpdateCoordinator):
         url = API_DEVICE_LIST.format(user_id=self._rcs.user_id)
         devices = await self._get_url(url)
         for d in devices:
-            # Log the name, ID, and product ID of each device
-            _LOGGER.debug("Discovered device - Name: %s, ID: %s, Product ID: %s", 
-                          d.get("name"), d.get("id"), d.get("product_id"))
+            device_id = d.get("id")
+            # Focus only on the target device for testing
+            if device_id == TARGET_DEVICE_ID:
+                _LOGGER.debug("Target device found - Name: %s, ID: %s, Product ID: %s", 
+                              d.get("name"), device_id, d.get("product_id"))
+                await self._discover_home(d)
+            else:
+                _LOGGER.debug("Ignoring device - Name: %s, ID: %s", d.get("name"), device_id)
 
-            sku_type = int(d["product_id"], 16) % 1000
-            match sku_type:
-                case 713, 721:
-                    _LOGGER.debug("Ignoring switch/dimmer (?) SKU type %d", sku_type)
-                case 897:
-                    await self._discover_home(d)
-                case _:
-                    _LOGGER.debug("Ignoring SKU type %d (%s)", sku_type, d.get("name"))
         self._event_stream.set_update_callback(self.async_handle_status)
         await self._event_stream.initialize()
         _LOGGER.info("Cloud started")
@@ -130,7 +122,7 @@ class ReCyncCoordinator(DataUpdateCoordinator):
             product_id=device["product_id"], device_id=device["id"]
         )
         info = await self._get_url(url)
-        for bulb in info["bulbsArray"]:
+        for bulb in info.get("bulbsArray", []):
             # Log details of each bulb discovered
             _LOGGER.debug("Bulb found - Name: %s, ID: %s, Type: %s", 
                           bulb.get("displayName"), bulb.get("deviceID"), bulb.get("deviceType"))
