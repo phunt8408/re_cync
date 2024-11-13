@@ -138,7 +138,7 @@ class EventStream:
             return
 
         # Only proceed if the switch ID matches the target device
-        if switch_id != TARGET_DEVICE_ID:
+         if switch_id != TARGET_DEVICE_ID:
              _LOGGER.debug("Ignoring command for switch %s (not target device)", switch_id)
             return
 
