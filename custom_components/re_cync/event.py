@@ -17,6 +17,7 @@ _LOGGER = logging.getLogger(__name__)
 
 TARGET_DEVICE_ID = "c2555427-0146-479b-9c78-a210d953b0ae"  # Dining Room Switch
 
+
 def packet2hex(byte_array) -> str:
     """Convert a byte array to a readable hex format."""
     return " ".join([f"{b:02x}" for b in byte_array])
@@ -32,10 +33,6 @@ class ReCyncEvent(TypedDict):
     id: str  # UUID
     creationtime: str
     type: str  # = EventType (add, update, delete)
-    # data contains a list with (partial) resource objects
-    # in case of add or update this is a full or partial resource object
-    # in case of delete this will include only the
-    # ResourceIndentifier (type and id) of the deleted object
     data: list[dict]
 
 
@@ -48,7 +45,6 @@ class EventType(Enum):
 
     RESOURCE_ADDED = "add"
     RESOURCE_UPDATED = "update"
-    # All the rest goes here...
 
 
 class EventStreamStatus(Enum):
@@ -95,16 +91,10 @@ class EventStream:
         return self._status
 
     async def initialize(self) -> None:
-        """Start listening for events.
-
-        Starts the connection to the Cync cloud and collect events.
-        Connection will be auto-reconnected if it gets lost.
-        """
+        """Start listening for events."""
         assert len(self._bg_tasks) == 0
         self._bg_tasks.append(asyncio.create_task(self.__event_reader()))
         self._bg_tasks.append(asyncio.create_task(self.__keepalive()))
-
-    #        self._bg_tasks.append(asyncio.create_task(self.__event_processor()))
 
     async def stop(self) -> None:
         """Stop listening for events."""
@@ -123,37 +113,34 @@ class EventStream:
                 continue
             if (
                 data is not None and resource_filter is not None
-                # TODOuncomment and ResourceTypes(data.get("type")) not in resource_filter
             ):
                 continue
             if iscoroutinefunction(callback):
-                asyncio.create_task(callback(etype, data))  # noqa: RUF006
+                asyncio.create_task(callback(etype, data))
             else:
                 callback(etype, data)
 
     async def async_command(self, c, switch_id, packet) -> None:
-         """Send a message to the cloud."""
-         if not self.connected:
+        """Send a message to the cloud."""
+        if not self.connected:
             _LOGGER.warning("Not connected, dropping message")
             return
 
-        # Only proceed if the switch ID matches the target device
-         if switch_id != TARGET_DEVICE_ID:
-             _LOGGER.debug("Ignoring command for switch %s (not target device)", switch_id)
+        if switch_id != TARGET_DEVICE_ID:
+            _LOGGER.debug("Ignoring command for switch %s (not target device)", switch_id)
             return
 
-         self._seq += 1
-         preamble = (
-             c
-             + int(switch_id).to_bytes(4, "big")
-             + int(self._seq).to_bytes(2, "big")
-             + bytes.fromhex("007e00000000f8d00d000000000000")
-         )
-         await self._async_write(preamble + packet)
-
+        self._seq += 1
+        preamble = (
+            c
+            + int(switch_id).to_bytes(4, "big")
+            + int(self._seq).to_bytes(2, "big")
+            + bytes.fromhex("007e00000000f8d00d000000000000")
+        )
+        await self._async_write(preamble + packet)
 
     async def _async_write(self, message) -> None:
-        self._writer.write(message)  # TODO Needs locking?
+        self._writer.write(message)
         await self._writer.drain()
 
     async def __keepalive(self) -> NoReturn:
@@ -211,23 +198,20 @@ class EventStream:
             packet = await self._reader.read(packet_length)
             assert len(packet) == packet_length
 
-            # _LOGGER.debug("Packet type %d length %d", packet_type, packet_length)
             match packet_type:
-                case 0x18:  # 24
+                case 0x18:
                     _LOGGER.debug("PING? %s", packet)
-                case 0x43:  # 67
+                case 0x43:
                     await self.__handle_status_update(packet)
-                # case 0x73:  # 115
-                #     pass
-                case 0x7B:  # 123
+                case 0x7B:
                     self.__handle_ack(packet)
-                case 0x83:  # 131 Command packet
+                case 0x83:
                     self.__handle_command(packet)
-                case 0xAB:  # 171
+                case 0xAB:
                     self.__handle_bulk_status(packet)
-                case 0xE0:  # 224 Usually 1-byte 0x03, before we get an eof
+                case 0xE0:
                     self.__handle_error(packet)
-                case 0xD8:  # 216 Keepalive response
+                case 0xD8:
                     _LOGGER.debug("Keep-ack %d", len(packet))
                 case _:
                     _LOGGER.debug(
@@ -253,46 +237,42 @@ class EventStream:
         _LOGGER.warning("Handled error %02x %d", err_code, err_code)
 
     async def __handle_status_update(self, packet):
-         switch_id = str(struct.unpack(">I", packet[0:4])[0])
+        switch_id = str(struct.unpack(">I", packet[0:4])[0])
 
-         # Only process status updates for the target device
         if switch_id != TARGET_DEVICE_ID:
-        _LOGGER.debug("Ignoring status update for switch %s (not target device)", switch_id)
-        return
+            _LOGGER.debug("Ignoring status update for switch %s (not target device)", switch_id)
+            return
 
         is_on, brightness, white_temp, red, green, blue = struct.unpack(
-        ">?BBBBB", packet[11:17]
-         )
-        _LOGGER.debug(
-        "Status from switch %s on:%s bri:%02x temp:%02x rgb:%02x%02x%02x after:%s",
-        switch_id,
-        is_on,
-        brightness,
-        white_temp,
-        red,
-        green,
-        blue,
-        packet[17:].hex(),
-         )
-        if self._cb:
-        await self._cb(
-            switch_id,
-            {
-                "is_on": is_on,
-                "brightness": brightness,
-                "white_temp": white_temp,
-                "rgb": (red, green, blue),
-            },
+            ">?BBBBB", packet[11:17]
         )
-
+        _LOGGER.debug(
+            "Status from switch %s on:%s bri:%02x temp:%02x rgb:%02x%02x%02x after:%s",
+            switch_id,
+            is_on,
+            brightness,
+            white_temp,
+            red,
+            green,
+            blue,
+            packet[17:].hex(),
+        )
+        if self._cb:
+            await self._cb(
+                switch_id,
+                {
+                    "is_on": is_on,
+                    "brightness": brightness,
+                    "white_temp": white_temp,
+                    "rgb": (red, green, blue),
+                },
+            )
 
     def __handle_command(self, packet):
-         switch_id = str(struct.unpack(">I", packet[0:4])[0])
+        switch_id = str(struct.unpack(">I", packet[0:4])[0])
 
-         # Only process commands for the target device
-         if switch_id != TARGET_DEVICE_ID:
-        _LOGGER.debug("Ignoring command for switch %s (not target device)", switch_id)
-        return
+        if switch_id != TARGET_DEVICE_ID:
+            _LOGGER.debug("Ignoring command for switch %s (not target device)", switch_id)
+            return
 
-         _LOGGER.debug("Command about switch %s %s", switch_id, packet.hex())
-
+        _LOGGER.debug("Command about switch %s %s", switch_id, packet.hex())
