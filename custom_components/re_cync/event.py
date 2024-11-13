@@ -135,12 +135,12 @@ class EventStream:
          """Send a message to the cloud."""
          if not self.connected:
             _LOGGER.warning("Not connected, dropping message")
-        return
+            return
 
         # Only proceed if the switch ID matches the target device
         if switch_id != TARGET_DEVICE_ID:
              _LOGGER.debug("Ignoring command for switch %s (not target device)", switch_id)
-        return
+            return
 
     self._seq += 1
     preamble = (
