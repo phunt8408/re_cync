@@ -10,11 +10,9 @@ import struct
 from typing import NoReturn, TypedDict
 
 from homeassistant.util.ssl import get_default_context, get_default_no_verify_context
-
 from .const import CLOUD_SERVER_NAME
 
 _LOGGER = logging.getLogger(__name__)
-
 TARGET_DEVICE_ID = "c2555427-0146-479b-9c78-a210d953b0ae"  # Dining Room Switch
 
 
@@ -29,7 +27,6 @@ class ResourceTypes(Enum):
 
 class ReCyncEvent(TypedDict):
     """Hue Event message as emitted by the EventStream."""
-
     id: str  # UUID
     creationtime: str
     type: str  # = EventType (add, update, delete)
@@ -38,29 +35,22 @@ class ReCyncEvent(TypedDict):
 
 class EventType(Enum):
     """Enum with possible Events."""
-
     CONNECTED = "connected"
     RECONNECTED = "reconnected"
     DISCONNECTED = "disconnected"
-
     RESOURCE_ADDED = "add"
     RESOURCE_UPDATED = "update"
 
 
 class EventStreamStatus(Enum):
     """Status options of EventStream."""
-
     CONNECTING = 0
     CONNECTED = 1
     DISCONNECTED = 2
 
 
 EventCallBackType = Callable[[EventType, dict | None], None]
-EventSubscriptionType = tuple[
-    EventCallBackType,
-    "tuple[EventType] | None",
-    "tuple[ResourceTypes] | None",
-]
+EventSubscriptionType = tuple[EventCallBackType, "tuple[EventType] | None", "tuple[ResourceTypes] | None"]
 
 
 class EventStream:
@@ -111,9 +101,7 @@ class EventStream:
         for callback, event_filter, resource_filter in self._subscribers:
             if event_filter is not None and etype not in event_filter:
                 continue
-            if (
-                data is not None and resource_filter is not None
-            ):
+            if data is not None and resource_filter is not None:
                 continue
             if iscoroutinefunction(callback):
                 asyncio.create_task(callback(etype, data))
