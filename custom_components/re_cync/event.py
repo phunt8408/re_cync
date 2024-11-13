@@ -142,14 +142,14 @@ class EventStream:
              _LOGGER.debug("Ignoring command for switch %s (not target device)", switch_id)
             return
 
-    self._seq += 1
-    preamble = (
-        c
-        + int(switch_id).to_bytes(4, "big")
-        + int(self._seq).to_bytes(2, "big")
-        + bytes.fromhex("007e00000000f8d00d000000000000")
-    )
-    await self._async_write(preamble + packet)
+         self._seq += 1
+         preamble = (
+             c
+             + int(switch_id).to_bytes(4, "big")
+             + int(self._seq).to_bytes(2, "big")
+             + bytes.fromhex("007e00000000f8d00d000000000000")
+         )
+         await self._async_write(preamble + packet)
 
 
     async def _async_write(self, message) -> None:
